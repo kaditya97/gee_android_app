@@ -6,6 +6,7 @@ import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong/latlong.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import 'layer.dart';
 
@@ -15,6 +16,8 @@ class Test extends StatefulWidget {
 }
 
 class _TestState extends State<Test> {
+  bool _loading = false;
+  String _title = 'Loading...';
   final double _initFabHeight = 120.0;
   double _fabHeight;
   double _panelHeightOpen;
@@ -29,29 +32,78 @@ class _TestState extends State<Test> {
   }
 
   List<Layer> listModel = [];
+  List<LayerOptions> listLayer = [];
+  List<SpeedDialChild> popupmenu = [];
+
   void mapLayer() async {
+    listLayer.add(
+      new TileLayerOptions(
+          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          subdomains: ['a', 'b', 'c']),
+    );
+    setState(() {
+      _loading = true;
+    });
+
     final responseData =
-        await http.get("https://gee-flask.herokuapp.com/geoapi");
+        await http.get("https://gee-flask.herokuapp.com/");
+
     if (responseData.statusCode == 200) {
       final data = jsonDecode(responseData.body);
       setState(() {
         for (Map i in data["records"]) {
           listModel.add(Layer.fromJson(i));
         }
+        _loading = false;
       });
-      for (int i = 0; i < listModel.length;i++){
-        print(listModel[i].url);
+      for (int i = 1; i < listModel.length; i++) {
+        popupmenu.add(
+          SpeedDialChild(
+            child: Icon(Icons.brush, color: Colors.white),
+            backgroundColor: Colors.green,
+            onTap: () {
+              setState(() {
+                _title = listModel[i].name;
+                listLayer = [];
+                listLayer.add(
+                  new TileLayerOptions(
+                      urlTemplate:
+                          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                      subdomains: ['a', 'b', 'c']),
+                );
+                listLayer.add(
+                  new TileLayerOptions(
+                      urlTemplate: listModel[i].url,backgroundColor: Colors.transparent),
+                );
+              });
+            },
+            label: listModel[i].name,
+            labelStyle: TextStyle(fontWeight: FontWeight.w500),
+            labelBackgroundColor: Colors.green,
+          ),
+        );
       }
-        
     }
+  }
+
+  SpeedDial buildSpeedDial() {
+    return SpeedDial(
+      marginBottom: _fabHeight,
+      animatedIconTheme: IconThemeData(size: 22.0),
+      child: Icon(Icons.map),
+      visible: true,
+      curve: Curves.bounceIn,
+      children: popupmenu,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     _panelHeightOpen = MediaQuery.of(context).size.height * .80;
 
-    return Material(
-      child: Stack(
+    return Scaffold(
+      floatingActionButton: buildSpeedDial(),
+      body: Stack(
         alignment: Alignment.topCenter,
         children: <Widget>[
           SlidingUpPanel(
@@ -59,7 +111,12 @@ class _TestState extends State<Test> {
             minHeight: _panelHeightClosed,
             parallaxEnabled: true,
             parallaxOffset: .5,
-            body: _body(),
+            body: _loading
+                ? Container(
+                    alignment: Alignment.center,
+                    child: CircularProgressIndicator(),
+                  )
+                : _body(),
             panelBuilder: (sc) => _panel(sc),
             borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(18.0),
@@ -69,21 +126,6 @@ class _TestState extends State<Test> {
                   _initFabHeight;
             }),
           ),
-
-          // the fab
-          Positioned(
-            right: 20.0,
-            bottom: _fabHeight,
-            child: FloatingActionButton(
-              child: Icon(
-                Icons.gps_fixed,
-                color: Theme.of(context).primaryColor,
-              ),
-              onPressed: () {},
-              backgroundColor: Colors.white,
-            ),
-          ),
-
           Positioned(
               top: 0,
               child: ClipRRect(
@@ -128,7 +170,7 @@ class _TestState extends State<Test> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Text(
-                  "Nepal GEE",
+                  _title,
                   style: TextStyle(
                     fontWeight: FontWeight.normal,
                     fontSize: 24.0,
@@ -201,7 +243,7 @@ class _TestState extends State<Test> {
                     height: 12.0,
                   ),
                   Text(
-                    """Pittsburgh is a city in the state of Pennsylvania in the United States, and is the county seat of Allegheny County. A population of about 302,407 (2018) residents live within the city limits, making it the 66th-largest city in the U.S. The metropolitan population of 2,324,743 is the largest in both the Ohio Valley and Appalachia, the second-largest in Pennsylvania (behind Philadelphia), and the 27th-largest in the U.S.\n\nPittsburgh is located in the southwest of the state, at the confluence of the Allegheny, Monongahela, and Ohio rivers. Pittsburgh is known both as "the Steel City" for its more than 300 steel-related businesses and as the "City of Bridges" for its 446 bridges. The city features 30 skyscrapers, two inclined railways, a pre-revolutionary fortification and the Point State Park at the confluence of the rivers. The city developed as a vital link of the Atlantic coast and Midwest, as the mineral-rich Allegheny Mountains made the area coveted by the French and British empires, Virginians, Whiskey Rebels, and Civil War raiders.\n\nAside from steel, Pittsburgh has led in manufacturing of aluminum, glass, shipbuilding, petroleum, foods, sports, transportation, computing, autos, and electronics. For part of the 20th century, Pittsburgh was behind only New York City and Chicago in corporate headquarters employment; it had the most U.S. stockholders per capita. Deindustrialization in the 1970s and 80s laid off area blue-collar workers as steel and other heavy industries declined, and thousands of downtown white-collar workers also lost jobs when several Pittsburgh-based companies moved out. The population dropped from a peak of 675,000 in 1950 to 370,000 in 1990. However, this rich industrial history left the area with renowned museums, medical centers, parks, research centers, and a diverse cultural district.\n\nAfter the deindustrialization of the mid-20th century, Pittsburgh has transformed into a hub for the health care, education, and technology industries. Pittsburgh is a leader in the health care sector as the home to large medical providers such as University of Pittsburgh Medical Center (UPMC). The area is home to 68 colleges and universities, including research and development leaders Carnegie Mellon University and the University of Pittsburgh. Google, Apple Inc., Bosch, Facebook, Uber, Nokia, Autodesk, Amazon, Microsoft and IBM are among 1,600 technology firms generating \$20.7 billion in annual Pittsburgh payrolls. The area has served as the long-time federal agency headquarters for cyber defense, software engineering, robotics, energy research and the nuclear navy. The nation's eighth-largest bank, eight Fortune 500 companies, and six of the top 300 U.S. law firms make their global headquarters in the area, while RAND Corporation (RAND), BNY Mellon, Nova, FedEx, Bayer, and the National Institute for Occupational Safety and Health (NIOSH) have regional bases that helped Pittsburgh become the sixth-best area for U.S. job growth.
+                    """Pittsburgh is a city in the state of Pennsylvania in the United States, and is the county seat of Allegheny County. A population of about 302,407 (2018) residents live within the city limits, making it the 66th-largest city in the U.S. The metropolitan population of 2,324,743 is the largest in both the Ohio Valley and Appalachia, the second-largest in Pennsylvania (behind Philadelphia), and the 27th-largest in the U.S.
                   """,
                     softWrap: true,
                   ),
@@ -247,20 +289,7 @@ class _TestState extends State<Test> {
         zoom: 3,
         maxZoom: 15,
       ),
-      layers: [
-        TileLayerOptions(
-            urlTemplate: "https://earthengine.googleapis.com/v1alpha/projects/earthengine-legacy/maps/a8f3544bdb878f6cc4edabc78652b52f-dae9f82c45b150794a442f40e6c00aa3/tiles/{z}/{x}/{y}"),
-        MarkerLayerOptions(markers: [
-          Marker(
-              point: LatLng(28.3949, 84.1240),
-              builder: (ctx) => Icon(
-                    Icons.location_on,
-                    color: Colors.blue,
-                    size: 48.0,
-                  ),
-              height: 60),
-        ]),
-      ],
+      layers: listLayer,
     );
   }
 }

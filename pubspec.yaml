@@ -36,6 +36,7 @@ dependencies:
   shared_preferences:
   introduction_screen:
   sliding_up_panel:
+  flutter_speed_dial:
 
 dev_dependencies:
   flutter_test:
