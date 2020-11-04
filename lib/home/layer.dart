@@ -1,3 +1,9 @@
+import 'dart:convert';
+
+Layer layerFromJson(String str) => Layer.fromJson(json.decode(str));
+
+String layerToJson(Layer data) => json.encode(data.toJson());
+
 class Layer {
   final String url,
       name,

@@ -1,13 +1,15 @@
-import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-import 'package:latlong/latlong.dart';
+import 'dart:ui';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:sliding_up_panel/sliding_up_panel.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong/latlong.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:file_picker/file_picker.dart';
 
-
-import 'Constants.dart';
+import 'layer.dart';
 
 class Home extends StatefulWidget {
   @override
@@ -15,179 +17,272 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _filter = new TextEditingController();
   bool _loading = false;
-  final String url = "http://192.168.1.93/twp/api/event/read.php";
-  String cases;
-  String deaths;
-  int recovered;
-  int active;
+  String _title = 'Open Street Map';
+  String dropdownValue = 'lulc';
+  final double _initFabHeight = 120.0;
+  double _fabHeight;
+  double _panelHeightOpen;
+  double _panelHeightClosed = 95.0;
 
   @override
   void initState() {
+    osmLayer();
     super.initState();
-    // _loading = true;
-    this.getJsonData();
+
+    _fabHeight = _initFabHeight;
   }
 
-  Future<String> getJsonData() async {
-    var response = await http.get(
-        //Encodeing url
-        Uri.encodeFull(url),
-        //only accept json response
-        headers: {"Accept": "application/json"});
+  final osm = new TileLayerOptions(
+      urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      subdomains: ['a', 'b', 'c']);
+
+  List<Layer> listModel = [];
+  List<LayerOptions> listLayer = [];
+  List<SpeedDialChild> popupmenu = [];
+
+  void osmLayer() {
+    listLayer.add(osm);
+  }
+
+  Future mapLayer(String name) async {
     setState(() {
-      var data = json.decode(response.body);
-      cases = data['records'][0]['id'];
-      deaths = data["deaths"];
-      recovered = data["recovered"];
-      active = data["active"];
-      _loading = false;
+      _loading = true;
     });
 
-    return "success";
-  }
+    final responseData = await http
+        .post("https://gee-flask.herokuapp.com/world", body: {"indicat": name});
 
-
-  void _showDialog() {
-    // flutter defined function
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        // return object of type Dialog
-        return AlertDialog(
-          title: new Text("Developer"),
-          content: new Text("Aditya Kushwaha"),
-          actions: <Widget>[
-            // usually buttons at the bottom of the dialog
-            new FlatButton(
-              child: new Text("Close"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+    if (responseData.statusCode == 200) {
+      final data = jsonDecode(responseData.body);
+      setState(() {
+        listModel = [];
+        for (Map i in data["records"]) {
+          listModel.add(Layer.fromJson(i));
+        }
+        _loading = false;
+      });
+      for (int i = 1; i < listModel.length; i++) {
+        popupmenu.add(
+          SpeedDialChild(
+            child: Icon(Icons.brush, color: Colors.white),
+            backgroundColor: Colors.green,
+            onTap: () {
+              setState(() {
+                _title = listModel[i].name;
+                listLayer = [];
+                listLayer.add(osm);
+                listLayer.add(
+                  new TileLayerOptions(
+                      urlTemplate: listModel[i].url,
+                      backgroundColor: Colors.transparent),
+                );
+              });
+            },
+            label: listModel[i].name,
+            labelStyle: TextStyle(fontWeight: FontWeight.w500),
+            labelBackgroundColor: Colors.green,
+          ),
         );
-      },
-    );
-  }
-
-  void _showSetting(){
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        // return object of type Dialog
-        return AlertDialog(
-          title: new Text("Setting"),
-          content: new Text("Coming Soon...."),
-          actions: <Widget>[
-            // usually buttons at the bottom of the dialog
-            new FlatButton(
-              child: new Text("Close"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void choiceAction(String choice) {
-    if (choice == Constants.About) {
-      _showDialog();
-    } else if (choice == Constants.Settings) {
-      _showSetting();
+      }
     }
+    return listLayer;
   }
+
   SpeedDial buildSpeedDial() {
     return SpeedDial(
-      animatedIcon: AnimatedIcons.menu_close,
+      marginBottom: _fabHeight,
       animatedIconTheme: IconThemeData(size: 22.0),
-      // child: Icon(Icons.add),
-      onOpen: () => print('OPENING DIAL'),
-      onClose: () => print('DIAL CLOSED'),
+      child: Icon(Icons.map),
       visible: true,
       curve: Curves.bounceIn,
-      children: [
-        SpeedDialChild(
-          child: Icon(Icons.accessibility, color: Colors.white),
-          backgroundColor: Colors.deepOrange,
-          onTap: () => print('FIRST CHILD'),
-          label: 'First Child',
-          labelStyle: TextStyle(fontWeight: FontWeight.w500),
-          labelBackgroundColor: Colors.deepOrangeAccent,
-        ),
-        SpeedDialChild(
-          child: Icon(Icons.brush, color: Colors.white),
-          backgroundColor: Colors.green,
-          onTap: () => print('SECOND CHILD'),
-          label: 'Second Child',
-          labelStyle: TextStyle(fontWeight: FontWeight.w500),
-          labelBackgroundColor: Colors.green,
-        ),
-        SpeedDialChild(
-          child: Icon(Icons.keyboard_voice, color: Colors.white),
-          backgroundColor: Colors.blue,
-          onTap: () => print('THIRD CHILD'),
-          labelWidget: Container(
-            color: Colors.blue,
-            margin: EdgeInsets.only(right: 10),
-            padding: EdgeInsets.all(6),
-            child: Text('Custom Label Widget'),
-          ),
-        ),
-      ],
+      children: popupmenu,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    _panelHeightOpen = MediaQuery.of(context).size.height * .80;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Google Earth Engine'),
-        leading: IconButton(
-          icon: Icon(Icons.menu),
-          onPressed: (){
-            Scaffold.of(context).openDrawer();
-          }
+      floatingActionButton: buildSpeedDial(),
+      body: Stack(
+        alignment: Alignment.topCenter,
+        children: <Widget>[
+          SlidingUpPanel(
+            maxHeight: _panelHeightOpen,
+            minHeight: _panelHeightClosed,
+            parallaxEnabled: true,
+            parallaxOffset: .5,
+            body: _loading
+                ? Container(
+                    alignment: Alignment.center,
+                    child: CircularProgressIndicator(),
+                  )
+                : _body(),
+            panelBuilder: (sc) => _panel(sc),
+            borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(18.0),
+                topRight: Radius.circular(18.0)),
+            onPanelSlide: (double pos) => setState(() {
+              _fabHeight = pos * (_panelHeightOpen - _panelHeightClosed) +
+                  _initFabHeight;
+            }),
           ),
-        actions: <Widget>[
-          PopupMenuButton<String>(
-            onSelected: choiceAction,
-            itemBuilder: (BuildContext context) {
-              return Constants.choices.map((String choice) {
-                return PopupMenuItem<String>(
-                  value: choice,
-                  child: Text(choice),
-                );
-              }).toList();
-            },
-          )
+          Positioned(
+              top: 0,
+              child: ClipRRect(
+                  child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).padding.top,
+                        color: Colors.transparent,
+                      )))),
         ],
       ),
-      floatingActionButton: buildSpeedDial(),
-      body: _loading
-          ? Container(
-              alignment: Alignment.center,
-              child: CircularProgressIndicator(),
-            )
-          : new FlutterMap(
-                options: new MapOptions(
-                  center: LatLng(27.3949, 84.1240),
-                  zoom: 6.0,
+    );
+  }
+
+  Widget _panel(ScrollController sc) {
+    return MediaQuery.removePadding(
+        context: context,
+        removeTop: true,
+        child: ListView(
+          controller: sc,
+          children: <Widget>[
+            SizedBox(
+              height: 12.0,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  width: 30,
+                  height: 5,
+                  decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.all(Radius.circular(12.0))),
                 ),
-                layers: [
-                  new TileLayerOptions(
-                    urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    subdomains: ['a', 'b', 'c']
+              ],
+            ),
+            SizedBox(
+              height: 18.0,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Text(
+                  _title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.normal,
+                    fontSize: 24.0,
                   ),
-                  new TileLayerOptions(
-                    urlTemplate: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                    subdomains: ['a','b','c']
-                  ),
-                ],
+                ),
+              ],
+            ),
+            SizedBox(
+              height: 36.0,
+            ),
+            Container(
+              padding: const EdgeInsets.only(left: 24.0, right: 24.0),
+              child: _form(), // Form for data submition
+            ),
+          ],
+        ));
+  }
+
+  Widget _body() {
+    return FlutterMap(
+      options: MapOptions(
+        center: LatLng(28.3949, 84.1240),
+        zoom: 3,
+        maxZoom: 15,
+      ),
+      layers: listLayer,
+    );
+  }
+
+  Widget _form() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TextFormField(
+            controller: _filter,
+            validator: (value) {
+              if (value.isEmpty) {
+                return 'Please enter some text';
+              }
+              return null;
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: DropdownButton<String>(
+              value: dropdownValue,
+              icon: Icon(Icons.arrow_drop_down_outlined),
+              iconSize: 24,
+              elevation: 16,
+              style: TextStyle(color: Colors.deepPurple),
+              underline: Container(
+                height: 2,
+                color: Colors.deepPurpleAccent,
               ),
+              onChanged: (String newValue) {
+                setState(() {
+                  dropdownValue = newValue;
+                });
+              },
+              items: <String>['lulc', 'dem', 'DEM', 'Nepal']
+                  .map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: ElevatedButton(
+              onPressed: () async {
+                FilePickerResult result = await FilePicker.platform.pickFiles();
+
+                if (result != null) {
+                  File file = File(result.files.single.path);
+                  print(file.path);
+                } else {
+                  // User canceled the picker
+                }
+              },
+              child: Text('Select Geojson File'),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: ElevatedButton(
+              onPressed: () async {
+                // Validate returns true if the form is valid, or false
+                // otherwise.
+                if (_formKey.currentState.validate()) {
+                  // If the form is valid, display a Snackbar.
+                  Scaffold.of(context)
+                      .showSnackBar(SnackBar(content: Text('Processing Data')));
+                  final String name = dropdownValue;
+                  print(name);
+                  final data = await mapLayer(name);
+                  print(data);
+                }
+              },
+              child: Text('Submit'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
