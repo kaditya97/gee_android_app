@@ -18,14 +18,16 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _filter = new TextEditingController();
   bool _loading = false;
   String _title = 'Open Street Map';
   String dropdownValue = 'lulc';
+  File filedata;
+  String _basename;
   final double _initFabHeight = 120.0;
   double _fabHeight;
   double _panelHeightOpen;
   double _panelHeightClosed = 95.0;
+  PanelController _pc = new PanelController();
 
   @override
   void initState() {
@@ -47,27 +49,50 @@ class _HomeState extends State<Home> {
     listLayer.add(osm);
   }
 
-  Future mapLayer(String name) async {
+  Future handleRequest(String name, File file) async {
+    _pc.close();
     setState(() {
       _loading = true;
     });
 
-    final responseData = await http
-        .post("https://gee-flask.herokuapp.com/world", body: {"indicat": name});
+    if (file != null) {
+      var uri = Uri.parse('https://gee-flask.herokuapp.com/');
+      var request = http.MultipartRequest('POST', uri)
+        ..fields['indicator'] = name
+        ..files.add(await http.MultipartFile.fromPath('roi', file.path));
+      var response = await request.send();
+      var responseData = await http.Response.fromStream(response);
+      mapLayer(responseData, name);
+    } else {
+      final responseData = await http.post(
+          "https://gee-flask.herokuapp.com/world",
+          body: {"indicat": name});
+      mapLayer(responseData, name);
+    }
+  }
 
+  void mapLayer(var responseData, var name) {
     if (responseData.statusCode == 200) {
       final data = jsonDecode(responseData.body);
       setState(() {
+        _title = name;
+        listLayer = [];
         listModel = [];
+        popupmenu = [];
         for (Map i in data["records"]) {
           listModel.add(Layer.fromJson(i));
         }
         _loading = false;
       });
       for (int i = 1; i < listModel.length; i++) {
+        listLayer.add(
+          new TileLayerOptions(
+              urlTemplate: listModel[i].url,
+              backgroundColor: Colors.transparent),
+        );
         popupmenu.add(
           SpeedDialChild(
-            child: Icon(Icons.brush, color: Colors.white),
+            child: Icon(Icons.map_sharp, color: Colors.white),
             backgroundColor: Colors.green,
             onTap: () {
               setState(() {
@@ -87,15 +112,17 @@ class _HomeState extends State<Home> {
           ),
         );
       }
+    } else {
+      Scaffold.of(context)
+          .showSnackBar(SnackBar(content: Text('Something went wrong')));
     }
-    return listLayer;
   }
 
   SpeedDial buildSpeedDial() {
     return SpeedDial(
       marginBottom: _fabHeight,
       animatedIconTheme: IconThemeData(size: 22.0),
-      child: Icon(Icons.map),
+      child: Icon(Icons.layers),
       visible: true,
       curve: Curves.bounceIn,
       children: popupmenu,
@@ -112,6 +139,7 @@ class _HomeState extends State<Home> {
         alignment: Alignment.topCenter,
         children: <Widget>[
           SlidingUpPanel(
+            controller: _pc,
             maxHeight: _panelHeightOpen,
             minHeight: _panelHeightClosed,
             parallaxEnabled: true,
@@ -124,8 +152,8 @@ class _HomeState extends State<Home> {
                 : _body(),
             panelBuilder: (sc) => _panel(sc),
             borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(18.0),
-                topRight: Radius.circular(18.0)),
+                topLeft: Radius.circular(24.0),
+                topRight: Radius.circular(24.0)),
             onPanelSlide: (double pos) => setState(() {
               _fabHeight = pos * (_panelHeightOpen - _panelHeightClosed) +
                   _initFabHeight;
@@ -211,15 +239,6 @@ class _HomeState extends State<Home> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          TextFormField(
-            controller: _filter,
-            validator: (value) {
-              if (value.isEmpty) {
-                return 'Please enter some text';
-              }
-              return null;
-            },
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
             child: DropdownButton<String>(
@@ -237,45 +256,94 @@ class _HomeState extends State<Home> {
                   dropdownValue = newValue;
                 });
               },
-              items: <String>['lulc', 'dem', 'DEM', 'Nepal']
-                  .map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items: [
+                DropdownMenuItem(
+                  child: Text("Land Cover"),
+                  value: 'lulc',
+                ),
+                DropdownMenuItem(
+                  child: Text("DEM"),
+                  value: 'dem',
+                ),
+                DropdownMenuItem(
+                  child: Text("NDVI"),
+                  value: 'ndvi',
+                ),
+                DropdownMenuItem(
+                  child: Text("NDBI"),
+                  value: 'ndbi',
+                ),
+                DropdownMenuItem(
+                  child: Text("NDWI"),
+                  value: 'ndwi',
+                ),
+                DropdownMenuItem(
+                  child: Text("Hillshade"),
+                  value: 'hillshade',
+                ),
+                DropdownMenuItem(
+                  child: Text("Slope"),
+                  value: 'slope',
+                ),
+                DropdownMenuItem(
+                  child: Text("Aspect"),
+                  value: 'aspect',
+                ),
+              ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: ElevatedButton(
-              onPressed: () async {
-                FilePickerResult result = await FilePicker.platform.pickFiles();
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Row(
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () async {
+                      FilePickerResult result =
+                          await FilePicker.platform.pickFiles();
 
-                if (result != null) {
-                  File file = File(result.files.single.path);
-                  print(file.path);
-                } else {
-                  // User canceled the picker
-                }
-              },
-              child: Text('Select Geojson File'),
-            ),
-          ),
+                      if (result != null) {
+                        filedata = File(result.files.single.path);
+                        setState(() {
+                          _basename = filedata.path.split('/').last;
+                        });
+                      } else {
+                        // User canceled the picker
+                      }
+                    },
+                    child: Text('Select Geojson File'),
+                  ),
+                  SizedBox(
+                    width: 16.0,
+                  ),
+                  Container(
+                    width: MediaQuery.of(context).size.width*0.45,
+                    child: Text(_basename != null ? _basename : ''),
+                  ),
+                ],
+              )),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
             child: ElevatedButton(
               onPressed: () async {
-                // Validate returns true if the form is valid, or false
-                // otherwise.
-                if (_formKey.currentState.validate()) {
-                  // If the form is valid, display a Snackbar.
+                void sendData(String name, File file) async {
                   Scaffold.of(context)
                       .showSnackBar(SnackBar(content: Text('Processing Data')));
-                  final String name = dropdownValue;
-                  print(name);
-                  final data = await mapLayer(name);
+                  final data = await handleRequest(name, file);
                   print(data);
+                }
+
+                final String name = dropdownValue;
+                if (filedata == null && dropdownValue == 'dem' ||
+                    filedata == null && dropdownValue == 'lulc') {
+                  final File file = null;
+                  sendData(name, file);
+                } else if (filedata == null) {
+                  Scaffold.of(context).showSnackBar(
+                      SnackBar(content: Text('Please Select a geojsonfile')));
+                }
+                if (filedata != null) {
+                  final File file = filedata;
+                  sendData(name, file);
                 }
               },
               child: Text('Submit'),
