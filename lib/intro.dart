@@ -60,28 +60,28 @@ class _OnBoardingPageState extends State<OnBoardingPage> {
         PageViewModel(
           title: "Side Drawer",
           body:
-              "Access the side drawer by tapping on menu on the left top or sliding in right direction from any screen.",
+              "Access the side drawer by sliding in right direction from any screen.",
           image: _buildImage('img1'),
           decoration: pageDecoration,
         ),
         PageViewModel(
-          title: "Detail and Search",
+          title: "Form and data submit",
           body:
-              "Get the detail about any country tapping on the card and search about any country tapping on search icon.",
+              "Acess the form for data using the bottom sheet by draging it upward.",
           image:Image.asset('assets/images/img2.png'),
           decoration: pageDecoration,
         ),
         PageViewModel(
-          title: "Get Detail",
+          title: "Toogle layers",
           body:
-              "Get detail about any country tapping on card in country screen or icon on map screen.",
+              "Toogle available layers by taping on layer icon.",
           image: Image.asset('assets/images/img3.png', width: 350.0),
           decoration: pageDecoration,
         ),
         PageViewModel(
-          title: "Map View",
-          body: "Switch map layers tapping on layers option and get detail tapping on icon.",
-          image: _buildImage('img4'),
+          title: "Choose data",
+          body: "Choose data type and select geojson file, you can get land cover and dem data without geojson file as well.",
+          image: Image.asset('assets/images/img4.png'),
           decoration: pageDecoration,
         ),
         PageViewModel(

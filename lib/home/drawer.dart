@@ -124,7 +124,7 @@ class CustomDrawer extends StatelessWidget {
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),),
-                onTap: () => _launch("https://github.com/kaditya97/coronavirus_app"),
+                onTap: () => _launch("https://github.com/kaditya97/gee_android_app"),
                 trailing: Icon(Icons.open_in_new,color: Colors.blue),
               ),
               ListTile(
